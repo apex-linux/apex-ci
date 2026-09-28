@@ -1,27 +1,8 @@
 #!/usr/bin/env bash
 # SPDX-License-Identifier: GPL-3.0-or-later
 #
-# The CI guard against biometric data in the repository (ADR 0006, THREAT-MODEL T6,
-# docs/hardware/FINGERPRINT.md "Never commit, attach or paste"). A fingerprint image or
-# template that reaches the public history can never be taken back, so this fails on:
-#   - files named *.pgm (images), *.variant (enrolled prints), *.ioctl and *.umockdev
-#     (umockdev recordings, which contain images), *.pcap and *.pcapng (usbmon
-#     captures), in any letter case;
-#   - anything under a var/lib/fprint directory (fprintd's stored prints);
-#   - a line with a run of 128 or more hex bytes (optionally 0x-prefixed, separated by
-#     a space, a colon or a comma), in any text file: what FP_DEBUG_TRANSFER=1 prints
-#     for a sensor frame, or a frame pasted into C;
-#   - a hex-dump line in a *.log or *.txt file: one that ends in ": " and five or more
-#     hex bytes, `: ([0-9A-Fa-f]{2} ?){5,} *$`;
-#   - a line of 400 or more characters (bytes) in a text file, where dumps, base64
-#     images and umockdev records end up. Exempt are the files in LONG_LINE_EXEMPT,
-#     whose format puts long lines there, and Markdown table rows (a line of a *.md
-#     file that starts and ends with '|') without a run of 120 or more non-blank
-#     characters; the three rules above still apply to them.
-# Vendored files kept byte-identical to their source (VENDORED_EXEMPT) get only the
-# name rules; each entry says why.
-# Binary files are not read (git grep -I); only their names are checked.
-# Findings name the file and line, never the content: CI logs are public too.
+# Fail on biometric data in the repository: fingerprint images, print templates, umockdev
+# recordings, usbmon captures, fprintd's stored prints, hex dumps and long lines.
 #
 #   privacy-guard.sh              check the files git tracks (CI: the checked-out commit)
 #   privacy-guard.sh --untracked  also check untracked files that .gitignore does not
@@ -38,16 +19,11 @@ export LC_ALL=C
 
 readonly MAX_LINE=400
 readonly FORBIDDEN_SUFFIXES=(pgm variant ioctl umockdev pcap pcapng)
-# 128 or more hex bytes in a row (each at least two hex digits, optionally 0x-prefixed,
-# optionally followed by one separator). ERE, as git grep -E takes it.
 readonly HEX_RUN='((0[xX])?[0-9A-Fa-f]{2}(, ?|[ :])?){128,}'
-# A hex-dump line (docs/hardware/FINGERPRINT.md), checked in *.log and *.txt files.
 readonly HEX_DUMP_LINE=': ([0-9A-Fa-f]{2} ?){5,} *$'
 readonly HEX_DUMP_FILES=(':(glob,icase)**/*.log' ':(glob,icase)**/*.txt')
-# A Markdown table row with a run this long is not exempt (a pasted blob).
 readonly TABLE_ROW_MAX_TOKEN=120
-# Files whose format puts lines of MAX_LINE or more there (git pathspec globs). Each
-# entry says why; the hex rules still apply to them.
+# Each entry needs its reason; the hex rules still apply to these files.
 readonly LONG_LINE_EXEMPT=(
     # Lockfiles: written by cargo from registry metadata.
     '**/Cargo.lock'
@@ -62,8 +38,8 @@ readonly LONG_LINE_EXEMPT=(
     'crates/apex-bootc/src/runner/tests.rs'
 )
 
-# Vendored files kept byte-identical to their source (git pathspec globs): only the
-# name rules apply to them. Each entry says why and what was checked.
+# Vendored files kept byte-identical to their source get only the name rules. Each entry
+# needs its reason and what was checked.
 readonly VENDORED_EXEMPT=(
     # The owner's design prototype (design/SPEC.md): minified JS, long SVG paths, and
     # C2PA content credentials in the icons (signer, claim and hashes; no personal or
@@ -71,7 +47,7 @@ readonly VENDORED_EXEMPT=(
     'design/mockup/**'
 )
 
-# finding MESSAGE: report one finding.
+# A finding names the file and line, never the content: CI logs are public.
 FINDINGS=0
 finding() {
     FINDINGS=$((FINDINGS + 1))
@@ -80,7 +56,6 @@ finding() {
 
 git_() { git -c safe.directory="$REPO" -C "$REPO" "$@"; }
 
-# check_names: every path (NUL-separated on stdin) against the forbidden names.
 check_names() {
     local path lower suffix
     while IFS= read -r -d '' path; do
@@ -96,9 +71,8 @@ check_names() {
     done
 }
 
-# scan OUT ERE PATHSPEC...: the lines matching ERE in the text files of PATHSPEC (binary
-# files are skipped: -I) as PATH NUL LINE NUL TEXT LF records in OUT. Fails on a git
-# grep error, which must never pass as clean.
+# scan OUT ERE PATHSPEC...: writes PATH NUL LINE NUL TEXT LF records to OUT. A git grep
+# error must never pass as clean.
 scan() {
     local out=$1 ere=$2 rc=0
     shift 2
@@ -106,14 +80,12 @@ scan() {
     ((rc <= 1)) || die "git grep failed (exit $rc)"
 }
 
-# is_exempt_table_row PATH TEXT: a Markdown table row without a long unbroken run.
 is_exempt_table_row() {
     [[ ${1,,} == *.md ]] || return 1
     [[ $2 =~ ^[[:space:]]*\|.*\|[[:space:]]*$ ]] || return 1
     ! [[ $2 =~ [^[:space:]]{$TABLE_ROW_MAX_TOKEN} ]]
 }
 
-# line_finding PATH LINE MESSAGE: report PATH:LINE, once (the first rule that matches).
 declare -A REPORTED=()
 line_finding() {
     [[ -z ${REPORTED["$1:$2"]:-} ]] || return 0
@@ -175,7 +147,6 @@ main() {
     log "privacy guard: no biometric files, hex dumps or long lines in $(git_ "${ls[@]}" | tr -cd '\0' | wc -c) files"
 }
 
-# selftest.sh sources this file to test its functions; only a direct run starts main.
 if [[ ${BASH_SOURCE[0]} == "$0" ]]; then
     main "$@"
 fi
