@@ -1,18 +1,24 @@
 #!/usr/bin/env bash
 # SPDX-License-Identifier: GPL-3.0-or-later
-#
-# Fail on biometric data in the repository: fingerprint images, print templates, umockdev
-# recordings, usbmon captures, fprintd's stored prints, hex dumps and long lines.
-#
-#   privacy-guard.sh              check the files git tracks (CI: the checked-out commit)
-#   privacy-guard.sh --untracked  also check untracked files that .gitignore does not
-#                                 hide (before `git add`)
-#   privacy-guard.sh --dir DIR    check the git repository at DIR instead of this one
-#
-# Exit status 0 clean, 1 findings (each printed as PATH or PATH:LINE with the reason).
 
 set -euo pipefail
 . "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
+
+usage() {
+    cat >&2 <<'EOF'
+
+Fail on biometric data in the repository: fingerprint images, print templates, umockdev
+recordings, usbmon captures, fprintd's stored prints, hex dumps and long lines.
+
+  privacy-guard.sh              check the files git tracks (CI: the checked-out commit)
+  privacy-guard.sh --untracked  also check untracked files that .gitignore does not
+                                hide (before `git add`)
+  privacy-guard.sh --dir DIR    check the git repository at DIR instead of this one
+
+Exit status 0 clean, 1 findings (each printed as PATH or PATH:LINE with the reason).
+EOF
+    exit 2
+}
 
 # Bytes, not characters, and the same regex behaviour on every host.
 export LC_ALL=C
@@ -23,27 +29,18 @@ readonly HEX_RUN='((0[xX])?[0-9A-Fa-f]{2}(, ?|[ :])?){128,}'
 readonly HEX_DUMP_LINE=': ([0-9A-Fa-f]{2} ?){5,} *$'
 readonly HEX_DUMP_FILES=(':(glob,icase)**/*.log' ':(glob,icase)**/*.txt')
 readonly TABLE_ROW_MAX_TOKEN=120
-# Each entry needs its reason; the hex rules still apply to these files.
 readonly LONG_LINE_EXEMPT=(
-    # Lockfiles: written by cargo from registry metadata.
-    '**/Cargo.lock'
-    # insta snapshots: written by the tests from Apex's own output.
-    '**/snapshots/*.snap'
-    # bootc --progress-fd captures: JSON Lines, one event per line.
-    'crates/apex-bootc/tests/fixtures/progress/*.jsonl'
-    # A .flatpakrepo carries the remote's public key as one base64 line (GPGKey=).
-    'image/system_files/usr/share/flatpak/remotes.d/*.flatpakrepo'
-    # A bootc status JSON document in a shell string (owner follow-up: wrap it, then
-    # drop this entry).
-    'crates/apex-bootc/src/runner/tests.rs'
+    '**/Cargo.lock' # written by cargo from registry metadata
+    '**/snapshots/*.snap' # insta snapshots, written by the tests from Apex's own output
+    'crates/apex-bootc/tests/fixtures/progress/*.jsonl' # bootc --progress-fd captures: one JSON event per line
+    'image/system_files/usr/share/flatpak/remotes.d/*.flatpakrepo' # the remote's public key is one base64 line (GPGKey=)
+    'crates/apex-bootc/src/runner/tests.rs' # a bootc status JSON in a shell string; owner follow-up: wrap it, drop this entry
 )
 
-# Vendored files kept byte-identical to their source get only the name rules. Each entry
-# needs its reason and what was checked.
+# Byte-identical vendored files get only the name rules; each entry says why and what was checked.
 readonly VENDORED_EXEMPT=(
-    # The owner's design prototype (design/SPEC.md): minified JS, long SVG paths, and
-    # C2PA content credentials in the icons (signer, claim and hashes; no personal or
-    # biometric data, checked 2026-09-28).
+    # The owner's design prototype (design/SPEC.md): minified JS, long SVG paths, and C2PA
+    # credentials in the icons (signer, claim, hashes; no personal or biometric data, checked 2026-09-28).
     'design/mockup/**'
 )
 
@@ -71,8 +68,6 @@ check_names() {
     done
 }
 
-# scan OUT ERE PATHSPEC...: writes PATH NUL LINE NUL TEXT LF records to OUT. A git grep
-# error must never pass as clean.
 scan() {
     local out=$1 ere=$2 rc=0
     shift 2
