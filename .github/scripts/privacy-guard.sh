@@ -38,11 +38,7 @@ readonly LONG_LINE_EXEMPT=(
 )
 
 # Byte-identical vendored files get only the name rules; each entry says why and what was checked.
-readonly VENDORED_EXEMPT=(
-    # The owner's design prototype (design/SPEC.md): minified JS, long SVG paths, and C2PA
-    # credentials in the icons (signer, claim, hashes; no personal or biometric data, checked 2026-09-28).
-    'design/mockup/**'
-)
+readonly VENDORED_EXEMPT=()
 
 # A finding names the file and line, never the content: CI logs are public.
 FINDINGS=0
