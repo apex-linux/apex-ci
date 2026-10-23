@@ -17,7 +17,6 @@ pub(crate) enum Syntax {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum Exclusion {
-    MockupExportedByDesignTool,
     TestFixtureData,
     ProseNotCode,
     UpstreamDiff,
@@ -30,9 +29,6 @@ pub(crate) enum Exclusion {
 const POLKIT_RULES_DIRECTORY: [&str; 2] = ["polkit-1", "rules.d"];
 
 pub(crate) fn exclusion(path: &Path, text: &str) -> Option<Exclusion> {
-    if has_directories(path, &["design", "mockup"]) {
-        return Some(Exclusion::MockupExportedByDesignTool);
-    }
     if has_directories(path, &["tests", "fixtures"]) || has_directories(path, &["tests", "golden"])
     {
         return Some(Exclusion::TestFixtureData);
@@ -156,10 +152,6 @@ mod tests {
     #[test]
     fn content_not_authored_here_is_excluded() {
         assert_eq!(
-            excluded("design/mockup/support.js"),
-            Some(Exclusion::MockupExportedByDesignTool)
-        );
-        assert_eq!(
             excluded("crates/apexctl/tests/fixtures/codec.txt"),
             Some(Exclusion::TestFixtureData)
         );
@@ -191,8 +183,6 @@ mod tests {
             Some(Exclusion::MarkupNotCode)
         );
         assert_eq!(excluded("image/tests/run.sh"), None);
-        assert_eq!(excluded("design/SPEC.md"), Some(Exclusion::ProseNotCode));
-        assert_eq!(excluded("tools/design/render-mockup.cjs"), None);
     }
 
     #[test]
