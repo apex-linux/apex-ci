@@ -1,6 +1,6 @@
 [package]
 name = "apex-lint"
-description = "The comment guard of docs/CONTRIBUTING.md: code explains itself, so long comment blocks and comment-heavy files fail the build; a dev tool, never shipped"
+description = "The comment guard of the apex-linux repositories: code explains itself, so long comment blocks and comment-heavy files fail the build; a CI tool, never shipped"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true

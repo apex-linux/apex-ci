@@ -1,0 +1,19 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+name: Fedora Rust toolchain
+description: In a fedora container job, install Fedora's rust, cargo, clippy, rustfmt and gcc and check rust-toolchain.toml.
+inputs:
+  packages:
+    description: Extra Fedora packages to install in the same transaction.
+    required: false
+    default: ""
+runs:
+  using: composite
+  steps:
+    - name: Install Fedora's Rust toolchain
+      shell: bash
+      env:
+        PACKAGES: ${{ inputs.packages }}
+      run: |
+        read -ra packages <<<"$PACKAGES"
+        cd "$GITHUB_WORKSPACE"
+        "$GITHUB_ACTION_PATH/../../scripts/fedora-rust.sh" "${packages[@]}"

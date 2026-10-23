@@ -1,0 +1,17 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+name: Comment guard
+description: Run apex-lint comments, built from this action's own commit, on the checked-out repository.
+runs:
+  using: composite
+  steps:
+    - name: Build apex-lint
+      shell: bash
+      run: |
+        command -v cargo >/dev/null || { echo "::error::the comment guard needs cargo on PATH"; exit 1; }
+        cargo install --quiet --locked --path "$GITHUB_ACTION_PATH/../../apex-lint" --root "$RUNNER_TEMP/apex-lint"
+    - name: apex-lint comments
+      shell: bash
+      run: |
+        git config --global --add safe.directory "$GITHUB_WORKSPACE"
+        cd "$GITHUB_WORKSPACE"
+        "$RUNNER_TEMP/apex-lint/bin/apex-lint" comments

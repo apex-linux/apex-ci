@@ -13,7 +13,10 @@ recordings, usbmon captures, fprintd's stored prints, hex dumps and long lines.
   privacy-guard.sh              check the files git tracks (CI: the checked-out commit)
   privacy-guard.sh --untracked  also check untracked files that .gitignore does not
                                 hide (before `git add`)
-  privacy-guard.sh --dir DIR    check the git repository at DIR instead of this one
+  privacy-guard.sh --dir DIR    check the git repository at DIR (default: the current one)
+
+A repository adds its own long-line exemptions to .github/privacy-guard.exempt, one glob
+per line, each followed by "# " and the reason.
 
 Exit status 0 clean, 1 findings (each printed as PATH or PATH:LINE with the reason).
 EOF
@@ -29,13 +32,22 @@ readonly HEX_RUN='((0[xX])?[0-9A-Fa-f]{2}(, ?|[ :])?){128,}'
 readonly HEX_DUMP_LINE=': ([0-9A-Fa-f]{2} ?){5,} *$'
 readonly HEX_DUMP_FILES=(':(glob,icase)**/*.log' ':(glob,icase)**/*.txt')
 readonly TABLE_ROW_MAX_TOKEN=120
-readonly LONG_LINE_EXEMPT=(
+LONG_LINE_EXEMPT=(
     '**/Cargo.lock' # written by cargo from registry metadata
     '**/snapshots/*.snap' # insta snapshots, written by the tests from Apex's own output
-    'crates/apex-bootc/tests/fixtures/progress/*.jsonl' # bootc --progress-fd captures: one JSON event per line
-    'image/system_files/usr/share/flatpak/remotes.d/*.flatpakrepo' # the remote's public key is one base64 line (GPGKey=)
-    'crates/apex-bootc/src/runner/tests.rs' # a bootc status JSON in a shell string; owner follow-up: wrap it, drop this entry
 )
+readonly EXEMPT_FILE=.github/privacy-guard.exempt
+
+load_exemptions() {
+    local line glob
+    [[ -f $REPO/$EXEMPT_FILE ]] || return 0
+    while IFS= read -r line || [[ -n $line ]]; do
+        [[ $line =~ ^[[:space:]]*(#|$) ]] && continue
+        [[ $line == *' # '?* ]] || die "$EXEMPT_FILE: '$line' gives no reason after ' # '"
+        glob=${line%% # *}
+        LONG_LINE_EXEMPT+=("${glob%"${glob##*[![:space:]]}"}")
+    done <"$REPO/$EXEMPT_FILE"
+}
 
 # Byte-identical vendored files get only the name rules; each entry says why and what was checked.
 readonly VENDORED_EXEMPT=()
@@ -103,13 +115,13 @@ check_lines() {
     scan "$WORK/long-lines" ".{$MAX_LINE}" . "${exclude[@]}" "${vendored[@]}"
     while IFS= read -r -d '' path && IFS= read -r -d '' line && IFS= read -r text; do
         is_exempt_table_row "$path" "$text" && continue
-        line_finding "$path" "$line" "a ${#text}-character line (a dump or an encoded image?); wrap it, or add the file to LONG_LINE_EXEMPT in .github/scripts/privacy-guard.sh with the reason"
+        line_finding "$path" "$line" "a ${#text}-character line (a dump or an encoded image?); wrap it, or add a glob and the reason to .github/privacy-guard.exempt"
     done <"$WORK/long-lines"
 }
 
 main() {
     local untracked=0
-    REPO=$APEX_ROOT
+    REPO=
     while (($#)); do
         case $1 in
             --untracked) untracked=1; shift ;;
@@ -118,7 +130,8 @@ main() {
         esac
     done
     require git
-    git_ rev-parse --git-dir >/dev/null 2>&1 || die "$REPO is not a git repository"
+    REPO=$(checkout_root "$REPO")
+    load_exemptions
 
     local -a ls=(ls-files -z --cached)
     GREP_ARGS=()
@@ -133,7 +146,7 @@ main() {
     check_lines
 
     if ((FINDINGS > 0)); then
-        die "privacy guard: $FINDINGS finding(s); remove the files from the change (and from history if they were pushed), see docs/hardware/FINGERPRINT.md"
+        die "privacy guard: $FINDINGS finding(s); remove the files from the change (and from history if they were pushed), see https://github.com/apex-linux/apex/blob/main/docs/hardware/FINGERPRINT.md"
     fi
     log "privacy guard: no biometric files, hex dumps or long lines in $(git_ "${ls[@]}" | tr -cd '\0' | wc -c) files"
 }

@@ -1,0 +1,9 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+name: Privacy guard
+description: Fail on biometric files, hex dumps and long lines in the checked-out repository.
+runs:
+  using: composite
+  steps:
+    - name: Tracked files
+      shell: bash
+      run: '"$GITHUB_ACTION_PATH/../../scripts/privacy-guard.sh" --dir "$GITHUB_WORKSPACE"'

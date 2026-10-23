@@ -1,0 +1,13 @@
+# Biometric data never belongs in a repository, in any letter case; scripts/privacy-guard.sh
+# also fails on these names, and on the hex dumps and long lines no pattern catches.
+*.[Pp][Gg][Mm]
+*.[Vv][Aa][Rr][Ii][Aa][Nn][Tt]
+*.[Ii][Oo][Cc][Tt][Ll]
+*.[Uu][Mm][Oo][Cc][Kk][Dd][Ee][Vv]
+*.[Pp][Cc][Aa][Pp]
+*.[Pp][Cc][Aa][Pp][Nn][Gg]
+**/var/lib/fprint/
+
+*.key
+*.swp
+/target/

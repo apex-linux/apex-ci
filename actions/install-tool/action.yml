@@ -1,0 +1,20 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+name: Install pinned tools
+description: Download pinned release binaries, check their SHA-256 and put them on PATH.
+inputs:
+  tools:
+    description: Space-separated tool names that scripts/install-tool.sh pins.
+    required: true
+runs:
+  using: composite
+  steps:
+    - name: Install ${{ inputs.tools }}
+      shell: bash
+      env:
+        TOOLS: ${{ inputs.tools }}
+      run: |
+        read -ra tools <<<"$TOOLS"
+        for tool in "${tools[@]}"; do
+          "$GITHUB_ACTION_PATH/../../scripts/install-tool.sh" "$tool" "$RUNNER_TEMP/apex-bin"
+        done
+        echo "$RUNNER_TEMP/apex-bin" >> "$GITHUB_PATH"
